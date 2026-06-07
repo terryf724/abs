@@ -21,7 +21,7 @@ USER_POOL_ID = "us-east-2_tYgQh1gc8"
 CLIENT_ID = "6o93td7t8m6inee9noheitceds"
 API = "https://fq6da3scsi.execute-api.us-east-2.amazonaws.com/prod/data/query"
 ONBOARD_API = "https://fq6da3scsi.execute-api.us-east-2.amazonaws.com/prod/patient/onboard"
-PATIENTS_FILE = os.path.expanduser("~/patients.json")
+PATIENTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "patients.json")
 
 WATER_TARGET_OZ = 96
 _token_cache = {"token": None}
