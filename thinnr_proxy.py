@@ -13,8 +13,8 @@ THINNR_EMAIL = "terry@atlbodysculpt.com"
 THINNR_PASSWORD = "Steelers1!"
 USER_POOL_ID = "us-east-2_tYgQh1gc8"
 CLIENT_ID = "6o93td7t8m6inee9noheitceds"
-API = "https://fq6da3scfi.execute-api.us-east-2.amazonaws.com/prod/data/query"
-ONBOARD_API = "https://fq6da3scfi.execute-api.us-east-2.amazonaws.com/prod/patient/onboard"
+API = "https://fq6da3scsi.execute-api.us-east-2.amazonaws.com/prod/data/query"
+ONBOARD_API = "https://fq6da3scsi.execute-api.us-east-2.amazonaws.com/prod/patient/onboard"
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -110,3 +110,82 @@ def analyze_day(day_data):
     main_slots = {k: v for k, v in groups.items() if k in ["breakfast", "lunch", "dinner"]}
     has_snacks = "snacks" in groups
     meal_times = list(main_slots.keys())
+    no_snacking = not has_snacks
+    water_ok = water >= WATER_TARGET_OZ
+    exactly_two = len(main_slots) == 2
+    plan_notes = []
+    meals_detail = []
+    all_on_plan = True
+    for slot_name, slot in main_slots.items():
+        ok, issues, macros = check_slot(slot_name, slot)
+        if not ok:
+            all_on_plan = False
+            plan_notes.extend(issues)
+        meals_detail.append({"slot": slot_name, "macros": macros, "on_plan": ok})
+    on_plan = all_on_plan and len(main_slots) >= 2
+    logged = len(main_slots) >= 2 and on_plan and no_snacking
+    return {"logged": logged, "two_meals": exactly_two, "no_snacking": no_snacking, "on_plan": on_plan, "water_ok": water_ok, "water_oz": water, "meal_times": meal_times, "plan_notes": plan_notes, "meals_detail": meals_detail, "snacking": has_snacks}
+
+@app.route("/patients")
+def get_patients():
+    return jsonify(supabase_get_patients())
+
+@app.route("/compliance")
+def get_compliance():
+    start = request.args.get("start")
+    end = request.args.get("end")
+    if not start or not end:
+        return jsonify({"error": "start and end dates required"}), 400
+    _token_cache["token"] = None
+    patients = supabase_get_patients()
+    results = []
+    for patient in patients:
+        logs = fetch_logs(patient["id"], start, end)
+        days = {}
+        from datetime import datetime, timedelta
+        start_dt = datetime.strptime(start, "%Y-%m-%d")
+        for i in range(7):
+            date = (start_dt + timedelta(days=i)).strftime("%Y-%m-%d")
+            days[date] = analyze_day(logs.get(date))
+        results.append({"id": patient["id"], "name": patient["name"], "days": days})
+    return jsonify(results)
+
+@app.route("/onboard", methods=["POST"])
+def onboard_patient():
+    data = request.json
+    name = data.get("name")
+    phone = data.get("phone")
+    start_date = data.get("programStartDate")
+    if not name or not phone or not start_date:
+        return jsonify({"error": "name, phone, and programStartDate are required"}), 400
+    phone = ''.join(filter(str.isdigit, phone))
+    _token_cache["token"] = None
+    token = get_token()
+    payload = {
+        "name": name,
+        "phone": phone,
+        "programID": "thinnr",
+        "programStartDate": start_date,
+        "mobileAppOnboard": True
+    }
+    r = requests.post(ONBOARD_API, headers={
+        "Content-Type": "application/json",
+        "Authorization": token
+    }, json=payload)
+    result = r.json()
+    print(f"Onboarded: {name} ({phone}) — Response: {result}")
+    if result.get("statusCode") == 200:
+        patient_id = result.get("data", {}).get("id")
+        if patient_id:
+            status = supabase_add_patient(patient_id, name)
+            print(f"Added {name} to Supabase — status {status}")
+    return jsonify({"success": True, "patient": name, "phone": phone, "response": result})
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5001))
+    print(f"\nTHINNR Proxy Server running on port {port}\n")
+    app.run(host="0.0.0.0", port=port)
