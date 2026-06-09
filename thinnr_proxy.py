@@ -8,6 +8,8 @@ warnings.filterwarnings("ignore")
 
 app = Flask(__name__)
 CORS(app)
+from ghl_bot_route import register_ghl_bot
+register_ghl_bot(app)
 
 THINNR_EMAIL = "terry@atlbodysculpt.com"
 THINNR_PASSWORD = "Steelers1!"
