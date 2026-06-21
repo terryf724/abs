@@ -380,8 +380,9 @@ def register_ghl_bot(app):
             return jsonify({"status": "skipped", "reason": "automation handles this"})
 
         # Check if a human recently replied — if so, stay quiet for 15 minutes
-        if human_recently_replied(contact_id, grace_minutes=45):
-            return jsonify({"status": "skipped", "reason": "human recently replied — in grace period"})
+    # Handoff check temporarily disabled
+        # if human_recently_replied(contact_id, grace_minutes=45):
+        #     return jsonify({"status": "skipped", "reason": "human recently replied — in grace period"})
 
         # 1. Get conversation history for context
         history = get_conversation_history(contact_id)
