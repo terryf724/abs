@@ -4,12 +4,6 @@ import smtplib
 from email.mime.text import MIMEText
 from flask import request, jsonify
 
-# ── Config ───────────────────────────import anthropic
-import requests
-import smtplib
-from email.mime.text import MIMEText
-from flask import request, jsonify
-
 # ── Config ───────────────────────────────────────────────────────────────────
 GHL_API_KEY = "pit-0876bfa7-639e-4815-8c33-7b4647ba8e6e"
 GHL_BASE_URL = "https://services.leadconnectorhq.com"
