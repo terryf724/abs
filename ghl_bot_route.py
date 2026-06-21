@@ -428,7 +428,7 @@ def register_ghl_bot(app):
         if flag:
             print(f"🚩 Flagged for Terry: {flag}")
 
-        return jsonify({"status": "ok", "reply": reply_text, "flagged": flag}}
+        return jsonify({"status": "ok", "reply": reply_text, "flagged": flag})
 GHL_API_KEY = "pit-0876bfa7-639e-4815-8c33-7b4647ba8e6e"
 GHL_BASE_URL = "https://services.leadconnectorhq.com"
 RESCHEDULE_LINK = "https://services.msgsndr.com/urls/l/85XJNne5qG"
