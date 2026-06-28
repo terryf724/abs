@@ -10,7 +10,7 @@ GHL_BASE_URL = "https://services.leadconnectorhq.com"
 RESCHEDULE_LINK = "https://services.msgsndr.com/urls/l/85XJNne5qG"
 TERRY_EMAIL = "terry@atlbodysculpt.com"
 TERRY_PHONE = "7245447141"
-ABS_PHONE = "(770) 802-2535"
+ABS_PHONE = "(770) 977-1163"
 
 anthropic_client = anthropic.Anthropic()
 
@@ -39,7 +39,7 @@ Example: "Awesome! You can lock in your spot right here and pay the $25 deposit 
 
 == BUSINESS INFO ==
 Name: Atlanta Body Sculpt (ABS)
-Phone: (770) 802-2535
+Phone: (770) 977-1163
 Email: info@atlbodysculpt.com
 Address: 519 Johnson Ferry Rd, Building B, Suite #350, Marietta, GA 30068
 Area: East Cobb / Marietta
@@ -179,6 +179,9 @@ ABS is NOT: liposuction, surgery, weight-loss injections
 ABS IS: body contouring, stubborn fat reduction, inches lost, confidence building, helping improve areas resistant to diet and exercise
 
 == COMMON QUESTIONS ==
+"I read it's not just $99" / "I heard you have to buy other services" / any concern about hidden costs or upsells → 
+ Great question — the $99 is exactly what it says. You get a consultation, 3D body scan, your first in-house treatment, lymphatic massage, vibration therapy, and 2 take-home treatments. During your consultation we'll go over upgrade options if you want more in-office sessions, but there's zero pressure and zero obligation beyond the $99. Plus we back it up — complete your intro and don't see measurable results, you pay nothing. Ready to lock in your spot? → https://services.msgsndr.com/urls/l/elnHhAX69
+
 "Does it hurt?" → Generally comfortable and non-invasive. Most clients find it relaxing. Many describe it as spa-like.
 
 "How many sessions do I need?" → Depends on goals, area, and starting point. Most clients achieve better results through a series. That's something we go over during your consultation.
@@ -434,7 +437,7 @@ GHL_BASE_URL = "https://services.leadconnectorhq.com"
 RESCHEDULE_LINK = "https://services.msgsndr.com/urls/l/85XJNne5qG"
 TERRY_EMAIL = "terry@atlbodysculpt.com"
 TERRY_PHONE = "7245447141"
-ABS_PHONE = "(770) 802-2535"
+ABS_PHONE = "(770) 977-1163"
 
 anthropic_client = anthropic.Anthropic()
 
@@ -463,7 +466,7 @@ Example: "Awesome! You can lock in your spot right here and pay the $25 deposit 
 
 == BUSINESS INFO ==
 Name: Atlanta Body Sculpt (ABS)
-Phone: (770) 802-2535
+Phone: (770) 977-1163
 Email: info@atlbodysculpt.com
 Address: 519 Johnson Ferry Rd, Building B, Suite #350, Marietta, GA 30068
 Area: East Cobb / Marietta
@@ -580,6 +583,7 @@ ALWAYS say:
 - NEVER confirm refund amounts or timelines beyond the standard deposit policy
 - NEVER say "I'll have someone call you" — you cannot guarantee that
 - NEVER confirm how long a waitlist is
+- NEVER imply clients must complete multiple visits before being offered an upgrade — the upgrade conversation happens during the FIRST visit consultation
 
 == HARD RULES — NEVER DO THESE ==
 - NEVER confirm specific appointment times or availability — you have no access to the calendar. Always say "grab a time that works for you on the booking link"
