@@ -307,7 +307,7 @@ def human_recently_replied(contact_id, grace_minutes=15):
         return False
 
 # ── Helper: Send message via GHL ─────────────────────────────────────────────
-def send_ghl_message(contact_id, message):
+def send_ghl_message(contact_id, message, channel="1"):
     try:
         r = requests.get(
             f"{GHL_BASE_URL}/conversations/search",
@@ -320,6 +320,16 @@ def send_ghl_message(contact_id, message):
             return False
 
         convo_id = convos[0]["id"]
+
+        # Map GHL channel number to message type
+        channel_map = {
+            "1": "SMS",
+            "2": "SMS",
+            "3": "FB",
+            "4": "IG",
+        }
+        msg_type = channel_map.get(str(channel), "SMS")
+
         r2 = requests.post(
             f"{GHL_BASE_URL}/conversations/messages",
             headers={
@@ -327,9 +337,9 @@ def send_ghl_message(contact_id, message):
                 "Content-Type": "application/json",
                 "Version": "2021-04-15"
             },
-            json={"type": "SMS", "conversationId": convo_id, "contactId": contact_id, "message": message}
+            json={"type": msg_type, "conversationId": convo_id, "contactId": contact_id, "message": message}
         )
-        print(f"GHL send: {r2.status_code} {r2.text}")
+        print(f"GHL send ({msg_type}): {r2.status_code} {r2.text}")
         return r2.status_code == 200
     except Exception as e:
         print(f"Error sending GHL message: {e}")
@@ -421,7 +431,8 @@ def register_ghl_bot(app):
                 break
 
         # 4. Send the reply
-        send_ghl_message(contact_id, reply_text)
+        channel = data.get("channel", "1")
+        send_ghl_message(contact_id, reply_text, channel)
 
         # 5. Alert Terry if flagged
         if flag:
