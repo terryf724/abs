@@ -160,8 +160,9 @@ def onboard_patient():
     start_date = data.get("programStartDate")
     if not name or not phone or not start_date:
         return jsonify({"error": "name, phone, and programStartDate are required"}), 400
-    phone = ''.join(filter(str.isdigit, phone))
-    _token_cache["token"] = None
+phone = ''.join(filter(str.isdigit, phone))
+if phone.startswith('1') and len(phone) == 11:
+    phone = phone[1:]    _token_cache["token"] = None
     token = get_token()
     payload = {
         "name": name,
