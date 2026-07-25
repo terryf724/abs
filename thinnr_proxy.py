@@ -132,25 +132,37 @@ def analyze_day(day_data):
 def get_patients():
     return jsonify(supabase_get_patients())
 
-@app.route("/compliance")
-def get_compliance():
-    start = request.args.get("start")
-    end = request.args.get("end")
-    if not start or not end:
-        return jsonify({"error": "start and end dates required"}), 400
-    _token_cache["token"] = None
-    patients = supabase_get_patients()
-    results = []
-    for patient in patients:
-        logs = fetch_logs(patient["id"], start, end)
-        days = {}
-        from datetime import datetime, timedelta
-        start_dt = datetime.strptime(start, "%Y-%m-%d")
-        for i in range(7):
-            date = (start_dt + timedelta(days=i)).strftime("%Y-%m-%d")
-            days[date] = analyze_day(logs.get(date))
-        results.append({"id": patient["id"], "name": patient["name"], "days": days})
-    return jsonify(results)
+@app.route("/onboard", methods=["POST"])
+def onboard_patient():
+    data = request.json
+    name = data.get("name")
+    phone = data.get("phone")
+    start_date = data.get("programStartDate")
+    if not name or not phone or not start_date:
+        return jsonify({"error": "name, phone, and programStartDate are required"}), 400
+    phone = ''.join(filter(str.isdigit, phone))
+    if phone.startswith('1') and len(phone) == 11:
+        phone = phone[1:]
+    token = get_token()
+    payload = {
+        "name": name,
+        "phone": phone,
+        "programID": "thinnr",
+        "programStartDate": start_date,
+        "mobileAppOnboard": True
+    }
+    r = requests.post(ONBOARD_API, headers={
+        "Content-Type": "application/json",
+        "Authorization": token
+    }, json=payload)
+    result = r.json()
+    print(f"Onboarded: {name} ({phone}) — Response: {result}")
+    if result.get("statusCode") == 200:
+        patient_id = result.get("data", {}).get("id")
+        if patient_id:
+            status = supabase_add_patient(patient_id, name)
+            print(f"Added {name} to Supabase — status {status}")
+    return jsonify({"success": True, "patient": name, "phone": phone, "response": result})
 
 @app.route("/onboard", methods=["POST"])
 def onboard_patient():
