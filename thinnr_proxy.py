@@ -1,3 +1,4 @@
+Thinnr proxy · PY
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from pycognito import Cognito
@@ -5,25 +6,21 @@ import requests
 import warnings
 import os
 warnings.filterwarnings("ignore")
-
 app = Flask(__name__)
 CORS(app)
 from ghl_bot_route import register_ghl_bot
 register_ghl_bot(app)
-
 THINNR_EMAIL = "terry@atlbodysculpt.com"
 THINNR_PASSWORD = "Steelers1!"
 USER_POOL_ID = "us-east-2_tYgQh1gc8"
 CLIENT_ID = "6o93td7t8m6inee9noheitceds"
 API = "https://fq6da3scsi.execute-api.us-east-2.amazonaws.com/prod/data/query"
 ONBOARD_API = "https://fq6da3scsi.execute-api.us-east-2.amazonaws.com/prod/patient/onboard"
-
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-
 WATER_TARGET_OZ = 96
 _token_cache = {"token": None}
-
+ 
 def supabase_get_patients():
     r = requests.get(
         f"{SUPABASE_URL}/rest/v1/patients?select=id,name&active=eq.true&order=name",
@@ -33,7 +30,7 @@ def supabase_get_patients():
         }
     )
     return r.json()
-
+ 
 def supabase_add_patient(patient_id, name):
     r = requests.post(
         f"{SUPABASE_URL}/rest/v1/patients",
@@ -46,14 +43,14 @@ def supabase_add_patient(patient_id, name):
         json={"id": patient_id, "name": name, "active": True}
     )
     return r.status_code
-
+ 
 def get_token():
     if not _token_cache["token"]:
         u = Cognito(USER_POOL_ID, CLIENT_ID, username=THINNR_EMAIL)
         u.authenticate(password=THINNR_PASSWORD)
         _token_cache["token"] = u.id_token
     return _token_cache["token"]
-
+ 
 def fetch_logs(patient_id, start_date, end_date):
     token = get_token()
     payload = {
@@ -74,7 +71,7 @@ def fetch_logs(patient_id, start_date, end_date):
         for item in items
         if start_date <= item.get("date", "") <= end_date
     }
-
+ 
 def group_by_time(meals):
     groups = {}
     for meal in meals:
@@ -86,7 +83,7 @@ def group_by_time(meals):
             groups[t] = {"time": t, "ingredients": []}
         groups[t]["ingredients"].extend(ingredients)
     return groups
-
+ 
 def check_slot(slot_name, slot):
     protein_oz = sum(i.get("oz", 0) for i in slot["ingredients"] if i.get("category") == "protein")
     veg_oz = sum(i.get("oz", 0) for i in slot["ingredients"] if i.get("category") == "vegetable")
@@ -99,7 +96,7 @@ def check_slot(slot_name, slot):
     if fruit_oz < 3:
         issues.append(f"{slot_name}: low fruit ({round(fruit_oz,1)}oz)")
     return len(issues) == 0, issues, {"protein": round(protein_oz,1), "veg": round(veg_oz,1), "fruit": round(fruit_oz,1)}
-
+ 
 def analyze_day(day_data):
     if not day_data:
         return {"logged": False, "two_meals": False, "no_snacking": False, "on_plan": False, "water_ok": False, "water_oz": 0, "meal_times": [], "plan_notes": [], "meals_detail": [], "snacking": False}
@@ -127,11 +124,31 @@ def analyze_day(day_data):
     on_plan = all_on_plan and len(main_slots) >= 2
     logged = len(main_slots) >= 2 and on_plan and no_snacking
     return {"logged": logged, "two_meals": exactly_two, "no_snacking": no_snacking, "on_plan": on_plan, "water_ok": water_ok, "water_oz": water, "meal_times": meal_times, "plan_notes": plan_notes, "meals_detail": meals_detail, "snacking": has_snacks}
-
+ 
 @app.route("/patients")
 def get_patients():
     return jsonify(supabase_get_patients())
-
+ 
+@app.route("/compliance")
+def get_compliance():
+    start = request.args.get("start")
+    end = request.args.get("end")
+    if not start or not end:
+        return jsonify({"error": "start and end dates required"}), 400
+    _token_cache["token"] = None
+    patients = supabase_get_patients()
+    results = []
+    for patient in patients:
+        logs = fetch_logs(patient["id"], start, end)
+        days = {}
+        from datetime import datetime, timedelta
+        start_dt = datetime.strptime(start, "%Y-%m-%d")
+        for i in range(7):
+            date = (start_dt + timedelta(days=i)).strftime("%Y-%m-%d")
+            days[date] = analyze_day(logs.get(date))
+        results.append({"id": patient["id"], "name": patient["name"], "days": days})
+    return jsonify(results)
+ 
 @app.route("/onboard", methods=["POST"])
 def onboard_patient():
     data = request.json
@@ -163,43 +180,11 @@ def onboard_patient():
             status = supabase_add_patient(patient_id, name)
             print(f"Added {name} to Supabase — status {status}")
     return jsonify({"success": True, "patient": name, "phone": phone, "response": result})
-
-@app.route("/onboard", methods=["POST"])
-def onboard_patient():
-    data = request.json
-    name = data.get("name")
-    phone = data.get("phone")
-    start_date = data.get("programStartDate")
-    if not name or not phone or not start_date:
-        return jsonify({"error": "name, phone, and programStartDate are required"}), 400
-phone = ''.join(filter(str.isdigit, phone))
-if phone.startswith('1') and len(phone) == 11:
-    phone = phone[1:]
-    token = get_token()
-    payload = {
-        "name": name,
-        "phone": phone,
-        "programID": "thinnr",
-        "programStartDate": start_date,
-        "mobileAppOnboard": True
-    }
-    r = requests.post(ONBOARD_API, headers={
-        "Content-Type": "application/json",
-        "Authorization": token
-    }, json=payload)
-    result = r.json()
-    print(f"Onboarded: {name} ({phone}) — Response: {result}")
-    if result.get("statusCode") == 200:
-        patient_id = result.get("data", {}).get("id")
-        if patient_id:
-            status = supabase_add_patient(patient_id, name)
-            print(f"Added {name} to Supabase — status {status}")
-    return jsonify({"success": True, "patient": name, "phone": phone, "response": result})
-
+ 
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
-
+ 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     print(f"\nTHINNR Proxy Server running on port {port}\n")
