@@ -26,7 +26,7 @@ def supabase_get_patients():
         headers={
             "apikey": SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}"
-        }
+        },
      timeout=10
     )
     return r.json()
