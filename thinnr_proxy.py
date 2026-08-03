@@ -44,10 +44,10 @@ def supabase_add_patient(patient_id, name):
     return r.status_code
  
 def get_token():
-    _token_cache["token"] = None
-    u = Cognito(USER_POOL_ID, CLIENT_ID, username=THINNR_EMAIL)
-    u.authenticate(password=THINNR_PASSWORD)
-    _token_cache["token"] = u.id_token
+    if not _token_cache["token"]:
+        u = Cognito(USER_POOL_ID, CLIENT_ID, username=THINNR_EMAIL)
+        u.authenticate(password=THINNR_PASSWORD)
+        _token_cache["token"] = u.id_token
     return _token_cache["token"]
  
 def fetch_logs(patient_id, start_date, end_date):
