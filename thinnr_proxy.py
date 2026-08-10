@@ -18,7 +18,8 @@ ONBOARD_API = "https://fq6da3scsi.execute-api.us-east-2.amazonaws.com/prod/patie
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 WATER_TARGET_OZ = 96
-_token_cache = {"token": None}
+import time
+_token_cache = {"token": None, "expires_at": 0}
  
 def supabase_get_patients():
     r = requests.get(
@@ -45,9 +46,14 @@ def supabase_add_patient(patient_id, name):
     return r.status_code
  
 def get_token():
+    now = time.time()
+    if _token_cache["token"] and now < _token_cache["expires_at"] - 60:
+        return _token_cache["token"]
     u = Cognito(USER_POOL_ID, CLIENT_ID, username=THINNR_EMAIL)
     u.authenticate(password=THINNR_PASSWORD)
-    return u.id_token
+    _token_cache["token"] = u.id_token
+    _token_cache["expires_at"] = now + 3600
+    return _token_cache["token"]
  
 def fetch_logs(patient_id, start_date, end_date):
     token = get_token()
