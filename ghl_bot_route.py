@@ -412,7 +412,7 @@ def register_ghl_bot(app):
             return jsonify({"status": "skipped", "reason": "owner contact"})
  
         # Skip single-letter replies -- your automations handle those
-        if inbound_message.strip().upper() in ["A", "B", "C"]:
+        if inbound_message.strip().upper() in ["A", "B", "C", "D"]:
             print(f"Skipping single-letter reply: {inbound_message}")
             return jsonify({"status": "skipped", "reason": "automation handles this"})
  
