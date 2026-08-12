@@ -91,6 +91,7 @@ Never confirm the specific time yourself. The calendar confirms it, not you.
 - Short responses — this is SMS. 2-4 sentences max unless they asked something detailed.
 - Use the client's first name only if you're certain of it. Do not guess or invent names.
 - One emoji max per message. Keep it professional.
+- PLAIN TEXT ONLY. This is SMS -- NEVER use markdown, asterisks, bold (**text**), headers (##), bullet points, or "Day 1:" style labels. Write like a real person texting. Never use the * character. Keep it short.
 - For normal sales questions you do NOT need to say you're a bot. (Only identify as an automated assistant in complaint situations per PRIORITY #1.)
  
 == YOUR PRIMARY OBJECTIVE ==
@@ -126,21 +127,23 @@ Directions if lost:
 - Same side of the road as Dunkin Donuts and Waffle House
 - Opposite side from Ted's Montana Grill, Crumbl Cookie, and Kroger
  
-== THE $99 SNATCHED SERUM INTRO OFFER ==
-This is our flagship new client offer. Here's what it includes:
-1. Consultation and body assessment to discover their goals
+== THE $99 SNATCHED SERUM INTRO OFFER (BE PRECISE — DO NOT OVERSELL) ==
+The $99 intro includes EXACTLY this, no more:
+1. Consultation and body assessment
 2. ShapeScale 3D body scan
 3. Personalized treatment plan recommendation
-4. First Snatched Serum treatment applied in-house
-5. Lymphatic massage
-6. Vibration therapy plate session
-7. Remaining 2 treatments packaged for at-home use
+4. Your FIRST Snatched Serum treatment applied in-house
+5. A lymphatic massage (that first visit)
+6. A vibration therapy plate session (that first visit)
+7. Your remaining 2 treatments PACKAGED TO TAKE HOME and apply yourself
  
-To lock in their spot: $25 deposit (fully applied to their balance, fully refundable if they cancel 24hrs+ in advance)
+So the $99 = ONE in-office visit + TWO take-home treatments. That is the whole offer.
  
-Upgrade option: Instead of take-home treatments, they can upgrade to weekly in-office visits (minimum 3 visits). Pricing discussed during the FIRST VISIT consultation.
+To lock in their spot: $25 deposit (applied to balance, refundable if canceled 24hrs+ in advance).
  
-Guarantee: If they complete all 3 intro treatments and don't see measurable results, they pay nothing.
+PAID UPGRADE (separate from the $99): If a client wants to come into the office for their additional treatments instead of doing them at home, that is a PAID upgrade to a weekly in-office program (minimum 3 visits), with pricing discussed during the first-visit consultation. This is NOT included in the $99 and is NOT a free choice. Never describe coming in for all 3 treatments as something they can simply choose under the $99.
+ 
+Guarantee (do NOT volunteer this up front — only mention if a prospect is hesitant or explicitly asks about risk): If they complete their intro treatments and don't see measurable results, they pay nothing.
  
 == WHAT IS SNATCHED SERUM? ==
 - A topical serum that reduces fat in targeted areas -- no surgery, no injections, no downtime
@@ -191,6 +194,8 @@ ALWAYS say: "Many clients notice changes in how their clothes fit," "visible cha
 - NEVER invent or guess a person's name
 - NEVER give out (770) 802-2535 -- that is the SMS number contacts are already texting
 - NEVER imply clients must complete multiple visits before an upgrade is offered
+- NEVER frame coming in for all 3 treatments in-office as a free choice under the $99 -- in-office additional treatments are a PAID upgrade. The $99 = one in-office visit + two take-home treatments.
+- NEVER lead with or volunteer the money-back guarantee. Only mention it if the prospect is clearly hesitant or asks about risk/results.
  
 == WHAT ABS IS AND IS NOT ==
 ABS is NOT: liposuction, surgery, weight-loss injections
@@ -390,6 +395,64 @@ Log into GHL to follow up.
         text_terry(flag_type, contact_name, inbound)
  
  
+# ── Safety net: strip markdown/formatting from SMS replies ───────────────────
+def strip_markdown(text):
+    """Removes markdown that renders as literal junk in SMS (asterisks, headers, etc.)."""
+    import re
+    # Remove bold/italic asterisks and underscores used for emphasis
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)   # **bold**
+    text = re.sub(r"\*(.+?)\*", r"\1", text)         # *italic*
+    text = text.replace("**", "").replace("*", "")
+    # Remove markdown headers like ## or ###
+    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
+    # Remove leading bullet dashes at start of lines
+    text = re.sub(r"^\s*[-•]\s+", "", text, flags=re.MULTILINE)
+    # Collapse 3+ newlines to 2
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+ 
+ 
+# ── Safety net: block any time/availability confirmation ─────────────────────
+# The prompt tells the model never to confirm a time, but prompts aren't a
+# guarantee. This is a hard code-level backstop: if the customer's message is
+# about scheduling AND the bot's reply contains time-confirming language, we
+# override the reply with a safe response that only points to the booking link.
+ 
+SCHEDULING_TRIGGERS = [
+    "morning", "afternoon", "evening", "tomorrow", "today", "tonight",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "am", "pm", "a.m", "p.m", "o'clock", "oclock", "noon",
+    "come in", "come by", "available", "availability", "open", "opening",
+    "schedule", "book a time", "what time", "any time", "slot", "appointment time",
+    ":00", ":15", ":30", ":45"
+]
+ 
+CONFIRMATION_PHRASES = [
+    "works great", "works for you", "works for us", "that works", "time works",
+    "sounds good", "sounds great", "perfect", "see you thursday", "see you monday",
+    "see you tuesday", "see you wednesday", "see you friday", "see you saturday",
+    "see you sunday", "see you tomorrow", "see you then", "we'll see you",
+    "we will see you", "got you down", "you're booked", "youre booked",
+    "you're all set for", "is available", "we have that", "we can do that",
+    "that time is", "confirmed", "is open", "we're open then", "were open then",
+    "great choice", "that day works", "that morning works", "that afternoon works"
+]
+ 
+SAFE_SCHEDULING_REPLY = (
+    "Love it! Go ahead and grab whatever time works for you right here \u2192 "
+    "https://services.msgsndr.com/urls/l/elnHhAX69 -- you'll see all our open "
+    "slots on the calendar and can lock it in. Once you're booked you're all set!"
+)
+ 
+def looks_like_scheduling(text):
+    t = text.lower()
+    return any(trig in t for trig in SCHEDULING_TRIGGERS)
+ 
+def has_time_confirmation(text):
+    t = text.lower()
+    return any(phrase in t for phrase in CONFIRMATION_PHRASES)
+ 
+ 
 # ── Main Bot Route ────────────────────────────────────────────────────────────
 def register_ghl_bot(app):
     @app.route("/ghl-bot", methods=["POST"])
@@ -448,6 +511,16 @@ def register_ghl_bot(app):
                 flag = flag_type
                 reply_text = reply_text.replace(flag_tag, "").strip()
                 break
+ 
+        # 3a. SAFETY NET — strip any markdown so SMS never shows asterisks/headers
+        reply_text = strip_markdown(reply_text)
+ 
+        # 3b. SAFETY NET — never let the bot confirm a specific time/availability.
+        # If the customer was talking scheduling and the reply confirms a time,
+        # override it with the safe booking-link-only response.
+        if looks_like_scheduling(inbound_message) and has_time_confirmation(reply_text):
+            print("Safety net triggered: stripped a time-confirmation reply")
+            reply_text = SAFE_SCHEDULING_REPLY.encode().decode('unicode_escape')
  
         # 4. Send the reply
         send_ghl_message(contact_id, reply_text, channel)
