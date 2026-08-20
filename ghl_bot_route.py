@@ -422,14 +422,20 @@ def strip_markdown(text):
 # about scheduling AND the bot's reply contains time-confirming language, we
 # override the reply with a safe response that only points to the booking link.
  
+# Only genuine day/time signals -- deliberately excludes generic words like
+# "today", "open", "available" which show up in policy/promo questions too
+# (e.g. "do I have to come in today") and would wrongly trip this net.
 SCHEDULING_TRIGGERS = [
-    "morning", "afternoon", "evening", "tomorrow", "today", "tonight",
+    "morning", "afternoon", "evening", "tomorrow", "tonight",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-    "am", "pm", "a.m", "p.m", "o'clock", "oclock", "noon",
-    "come in", "come by", "available", "availability", "open", "opening",
-    "schedule", "book a time", "what time", "any time", "slot", "appointment time",
+    "o'clock", "oclock", "noon",
     ":00", ":15", ":30", ":45"
 ]
+ 
+# A standalone am/pm check (avoids matching "am" inside random words like "team")
+import re as _re
+def _has_clock_time(text):
+    return bool(_re.search(r"\b\d{1,2}(:\d{2})?\s?(am|pm)\b", text.lower()))
  
 CONFIRMATION_PHRASES = [
     "works great", "works for you", "works for us", "that works", "time works",
@@ -458,7 +464,7 @@ SAFE_SCHEDULING_REPLY = (
  
 def looks_like_scheduling(text):
     t = text.lower()
-    return any(trig in t for trig in SCHEDULING_TRIGGERS)
+    return any(trig in t for trig in SCHEDULING_TRIGGERS) or _has_clock_time(text)
  
 def has_time_confirmation(text):
     t = text.lower()
