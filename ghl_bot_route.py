@@ -211,6 +211,8 @@ ABS IS: body contouring, stubborn fat reduction, inches lost, confidence, improv
 "Do results last?" → Once fat cells are dissolved they're gone; maintain your weight and changes last.
 "Can I bring someone?" → Of course! Guests are welcome.
 "Is there parking?" → Yes, free parking in the business park lot.
+ 
+"What are your hours?" / someone asks about office hours before booking (e.g. "I want to know your hours before I pay the deposit in case I can't make a time") → Answer with the actual hours directly (see BUSINESS INFO above), then point them to the booking link to see real open slots once they're free to check: "We're open [hours]. Whenever you get a chance, you can see all our actual open times and grab one that works here → https://services.msgsndr.com/urls/l/elnHhAX69" Do NOT deflect a hours question to the safety-net scheduling response -- hours is general business info you know, not a specific-slot confirmation.
 "Do you accept insurance?" → Not covered by insurance, but we accept HSA/FSA and financing (CareCredit, Cherry, Afterpay, Affirm, Klarna).
 "How much is everything?" / package prices → Personalized based on goals; we go over it at your consultation. Best first step is the $99 intro visit.
 "Can I come a different day?" / NEW PROSPECT rescheduling a not-yet-attended intro → reschedule link: https://services.msgsndr.com/urls/l/85XJNne5qG (ONLY for new prospects; an existing/booked client = hand off.)
@@ -429,17 +431,25 @@ SCHEDULING_TRIGGERS = [
  
 CONFIRMATION_PHRASES = [
     "works great", "works for you", "works for us", "that works", "time works",
-    "sounds good", "sounds great", "perfect", "see you thursday", "see you monday",
-    "see you tuesday", "see you wednesday", "see you friday", "see you saturday",
-    "see you sunday", "see you tomorrow", "see you then", "we'll see you",
-    "we will see you", "got you down", "you're booked", "youre booked",
-    "you're all set for", "is available", "we have that", "we can do that",
-    "that time is", "confirmed", "is open", "we're open then", "were open then",
-    "great choice", "that day works", "that morning works", "that afternoon works"
+    "see you thursday", "see you monday", "see you tuesday", "see you wednesday",
+    "see you friday", "see you saturday", "see you sunday", "see you tomorrow",
+    "see you then", "we'll see you", "we will see you", "got you down",
+    "you're booked", "youre booked", "you're all set for", "is available",
+    "we have that", "we can do that", "that time is", "is open",
+    "we're open then", "were open then", "that day works", "that morning works",
+    "that afternoon works"
+]
+ 
+# Words that mean the bot is only stating general business info (hours, policy),
+# NOT confirming a specific slot for THIS person. If these are what triggered the
+# scheduling flag, don't override -- the bot answering "we're open 10-6" is fine.
+GENERAL_INFO_SIGNALS = [
+    "hours", "open from", "we are open", "we're open", "operating hours",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
 ]
  
 SAFE_SCHEDULING_REPLY = (
-    "Love it! Go ahead and grab whatever time works for you right here \u2192 "
+    "Love it! Go ahead and grab whatever time works for you right here → "
     "https://services.msgsndr.com/urls/l/elnHhAX69 -- you'll see all our open "
     "slots on the calendar and can lock it in. Once you're booked you're all set!"
 )
@@ -479,6 +489,19 @@ def register_ghl_bot(app):
             print(f"Skipping single-letter reply: {inbound_message}")
             return jsonify({"status": "skipped", "reason": "automation handles this"})
  
+        # SNATCHED promo keyword — guaranteed instant deposit-link reply, no AI judgment involved.
+        # Matches "SNATCHED" as a standalone word/reply (allows trailing punctuation/emoji-ish chars).
+        stripped_msg = inbound_message.strip().upper().rstrip("!.?")
+        if stripped_msg == "SNATCHED":
+            print(f"SNATCHED promo keyword matched from {contact_name}")
+            promo_reply = (
+                "You're locked in! Grab your spot and place your deposit here → "
+                "https://services.msgsndr.com/urls/l/elnHhAX69 -- do it today to keep "
+                "your free Snatched Pod session included!"
+            )
+            send_ghl_message(contact_id, promo_reply, channel)
+            return jsonify({"status": "ok", "reply": promo_reply, "flagged": None})
+ 
         # Bot kill switch — if the contact is tagged bot_paused, stay completely silent
         if bot_is_paused(contact_id):
             return jsonify({"status": "skipped", "reason": "bot_paused tag present"})
@@ -516,11 +539,14 @@ def register_ghl_bot(app):
         reply_text = strip_markdown(reply_text)
  
         # 3b. SAFETY NET — never let the bot confirm a specific time/availability.
-        # If the customer was talking scheduling and the reply confirms a time,
-        # override it with the safe booking-link-only response.
-        if looks_like_scheduling(inbound_message) and has_time_confirmation(reply_text):
+        # Only overrides when the customer proposed/asked about a time AND the bot's
+        # own reply contains genuine time-confirmation language. A reply that simply
+        # states general business hours is left alone.
+        reply_lower = reply_text.lower()
+        is_general_info_reply = any(sig in reply_lower for sig in GENERAL_INFO_SIGNALS) and not has_time_confirmation(reply_text)
+        if looks_like_scheduling(inbound_message) and has_time_confirmation(reply_text) and not is_general_info_reply:
             print("Safety net triggered: stripped a time-confirmation reply")
-            reply_text = SAFE_SCHEDULING_REPLY.encode().decode('unicode_escape')
+            reply_text = SAFE_SCHEDULING_REPLY
  
         # 4. Send the reply
         send_ghl_message(contact_id, reply_text, channel)
