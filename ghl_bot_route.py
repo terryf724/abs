@@ -124,6 +124,8 @@ Once paid we will text you a private link to schedule your visit!"
 
 Use their name if you know it; if not, just say "Fantastic!" and continue. This applies ONLY when they've given a plain yes/interest signal with no attached question. If they ask a question along with expressing interest (e.g. "yes I'm interested, how much is it"), answer the question first using the normal offer explanation, THEN close with this same link.
 
+INTEREST TRACKING TAG: Any time you send the deposit link because someone has genuinely expressed real interest/readiness to book -- whether that's a plain standalone "yes" moment using the exact close above, OR they expressed clear interest as part of a longer message (e.g. "yes I'm interested, how much is it" after you answer their question, or "okay I'll do it", "sounds good let's go", or any other clear wording meaning they're ready to move forward) -- add [INTEREST] at the very END of your response on its own line, after any other flag. This is invisible to the customer, just like the FLAG codes. Base this on their genuine intent, not exact wording -- if a reasonable person would read their message as "I want to move forward," add it. Do NOT add [INTEREST] for someone who is just asking a question with no indication they're ready (e.g. "how much is it" alone, with no expressed readiness), or for existing clients, or for anyone in the complaint/urgent/medical categories above.
+
 == BUSINESS INFO ==
 Name: Atlanta Body Sculpt (ABS)
 Phone: (770) 977-1163
@@ -239,6 +241,8 @@ Example: "Great question! On the $99 intro, your other 2 treatments are take-hom
 
 "What are your hours?" / someone asks about office hours before booking (e.g. "I want to know your hours before I pay the deposit in case I can't make a time") → Answer with the actual hours directly (see BUSINESS INFO above), then point them to the booking link to see real open slots once they're free to check: "We're open [hours]. Whenever you get a chance, you can see all our actual open times and grab one that works here → https://services.msgsndr.com/urls/l/elnHhAX69" Do NOT deflect a hours question to the safety-net scheduling response -- hours is general business info you know, not a specific-slot confirmation.
 "Do you accept insurance?" → Not covered by insurance, but we accept HSA/FSA and financing (CareCredit, Cherry, Afterpay, Affirm, Klarna).
+
+"Can I pay in 4?" / "Do you have Pay in 4?" / any question about splitting payment into installments → We don't have a separate "Pay in 4" product, but when you go to pay -- whether it's the $25 deposit or a package -- Afterpay, Affirm, and Klarna are available as payment options right on the payment page, and those let you split it into installments if you'd like. Just select whichever one you prefer at checkout.
 "How much is everything?" / package prices → Personalized based on goals; we go over it at your consultation. Best first step is the $99 intro visit.
 "Can I come a different day?" / NEW PROSPECT rescheduling a not-yet-attended intro → reschedule link: https://services.msgsndr.com/urls/l/85XJNne5qG (ONLY for new prospects; an existing/booked client = hand off.)
 "I am an existing member" / already have a package → "No problem! The easiest way to get that taken care of is to give us a call at (770) 977-1163 or shoot us an email at info@atlbodysculpt.com and we'll get you taken care of!"
@@ -562,6 +566,7 @@ def register_ghl_bot(app):
             "INTERESTED", "IM INTERESTED", "I'M INTERESTED", "IM STILL INTERESTED",
             "I'M STILL INTERESTED", "YES", "YES IM INTERESTED", "YES I'M INTERESTED",
             "READY", "IM READY", "I'M READY", "LETS DO IT", "LET'S DO IT",
+            "ILL DO IT", "I'LL DO IT", "LETS GO", "LET'S GO",
             "SIGN ME UP", "I WANT IN", "IM IN", "I'M IN", "COUNT ME IN"
         ]
         stripped_interest_check = inbound_message.strip().upper().rstrip("!.?")
@@ -612,6 +617,13 @@ def register_ghl_bot(app):
                 reply_text = reply_text.replace(flag_tag, "").strip()
                 break
 
+        # 3a-2. Conversion tracking — the AI marks [INTEREST] when it recognizes genuine
+        # buying intent (covers phrasings the deterministic keyword list below can't
+        # anticipate, e.g. "I'll do it", "okay let's go", or interest mixed with a question).
+        expressed_interest_via_ai = "[INTEREST]" in reply_text
+        if expressed_interest_via_ai:
+            reply_text = reply_text.replace("[INTEREST]", "").strip()
+
         # 3a. SAFETY NET — strip any markdown so SMS never shows asterisks/headers
         reply_text = strip_markdown(reply_text)
 
@@ -624,6 +636,10 @@ def register_ghl_bot(app):
 
         # 4. Send the reply
         send_ghl_message(contact_id, reply_text, channel)
+
+        # 4a. Tag conversion tracking if the AI recognized genuine buying intent
+        if expressed_interest_via_ai:
+            add_tag_to_contact(contact_id, "expressed_interest")
 
         # 5. Alert Terry if flagged, and auto-pause the bot on URGENT
         if flag:
