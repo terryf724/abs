@@ -336,6 +336,26 @@ def pause_bot_for_contact(contact_id):
         return False
 
 
+# ── Helper: Tag a contact with an arbitrary tag (e.g. expressed_interest) ────
+def add_tag_to_contact(contact_id, tag):
+    """Adds any tag to a contact in GHL. Used for conversion tracking."""
+    try:
+        r = requests.post(
+            f"{GHL_BASE_URL}/contacts/{contact_id}/tags",
+            headers={
+                "Authorization": f"Bearer {GHL_API_KEY}",
+                "Content-Type": "application/json",
+                "Version": "2021-07-28"
+            },
+            json={"tags": [tag]}
+        )
+        print(f"Tagged contact {contact_id} with '{tag}': {r.status_code}")
+        return r.status_code in (200, 201)
+    except Exception as e:
+        print(f"Error adding tag '{tag}': {e}")
+        return False
+
+
 # ── Helper: Send message via GHL ─────────────────────────────────────────────
 def send_ghl_message(contact_id, message, channel="1"):
     try:
@@ -531,7 +551,33 @@ def register_ghl_bot(app):
                 "your free Snatched Pod session included!"
             )
             send_ghl_message(contact_id, promo_reply, channel)
+            add_tag_to_contact(contact_id, "expressed_interest")
             return jsonify({"status": "ok", "reply": promo_reply, "flagged": None})
+
+        # PLAIN INTEREST keyword — guaranteed instant close + reliable conversion tracking.
+        # Checks the CUSTOMER'S message (not the AI's output) so tagging is never dependent
+        # on the model's free-text choices. Only fires on a genuinely standalone interest
+        # signal with nothing else attached -- NOT when interest is mixed with a question.
+        PLAIN_INTEREST_PHRASES = [
+            "INTERESTED", "IM INTERESTED", "I'M INTERESTED", "IM STILL INTERESTED",
+            "I'M STILL INTERESTED", "YES", "YES IM INTERESTED", "YES I'M INTERESTED",
+            "READY", "IM READY", "I'M READY", "LETS DO IT", "LET'S DO IT",
+            "SIGN ME UP", "I WANT IN", "IM IN", "I'M IN", "COUNT ME IN"
+        ]
+        stripped_interest_check = inbound_message.strip().upper().rstrip("!.?")
+        if stripped_interest_check in PLAIN_INTEREST_PHRASES:
+            print(f"Plain interest phrase matched from {contact_name}: '{inbound_message}'")
+            first_name = contact_name if contact_name and contact_name.lower() != "there" else ""
+            greeting = f"Fantastic {first_name}!" if first_name else "Fantastic!"
+            close_reply = (
+                f"{greeting}\n\n"
+                "Lock in your slot by placing a $25 deposit via this link --> "
+                "https://link.fastpaydirect.com/payment-link/67ef0ba908e4883db6f4fa6a\n\n"
+                "Once paid we will text you a private link to schedule your visit!"
+            )
+            send_ghl_message(contact_id, close_reply, channel)
+            add_tag_to_contact(contact_id, "expressed_interest")
+            return jsonify({"status": "ok", "reply": close_reply, "flagged": None})
 
         # Bot kill switch — if the contact is tagged bot_paused, stay completely silent
         if bot_is_paused(contact_id):
