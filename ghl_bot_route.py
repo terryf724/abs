@@ -278,6 +278,22 @@ Bot: "Thanks so much for letting us know! I'm going to have someone from our tea
 """
 
 # ── Helper: Get GHL conversation history ─────────────────────────────────────
+# ── Config: EXPIRED promo phrases to strip from conversation history ────────
+# When a limited-time promo ends, add a short identifying snippet of its text here.
+# Any historical message containing one of these phrases is removed before the
+# conversation is sent to Claude, so it physically cannot see or reference an
+# expired offer -- this is more reliable than a prompt rule fighting the bot's
+# own vivid prior message sitting in the transcript. Update this list after
+# every campaign that has a hard expiration.
+EXPIRED_PROMO_PHRASES = [
+    "Snatched Pod",  # one-day promo, expired -- added after it ran
+]
+
+def _contains_expired_promo(text):
+    t = text.lower()
+    return any(phrase.lower() in t for phrase in EXPIRED_PROMO_PHRASES)
+
+
 def get_conversation_history(contact_id):
     try:
         r = requests.get(
@@ -300,6 +316,9 @@ def get_conversation_history(contact_id):
             direction = msg.get("direction", "")
             body = msg.get("body", "").strip()
             if not body:
+                continue
+            if _contains_expired_promo(body):
+                print(f"Filtered expired-promo message out of history: {body[:60]}...")
                 continue
             role = "user" if direction == "inbound" else "assistant"
             history.append({"role": role, "content": body})
@@ -645,8 +664,16 @@ def register_ghl_bot(app):
         # 4. Send the reply
         send_ghl_message(contact_id, reply_text, channel)
 
-        # 4a. Tag conversion tracking if the AI recognized genuine buying intent
-        if expressed_interest_via_ai:
+        # 4a. Tag conversion tracking. Two signals, either one is sufficient:
+        #   (1) the AI's own [INTEREST] marker (best-effort, catches edge phrasings)
+        #   (2) the fastpaydirect deposit link appearing in what actually got sent --
+        #       this link is used ONLY in the "already said yes" proven close (verified
+        #       to appear nowhere else in the prompt), so its presence in the real
+        #       outgoing message is a reliable, structural signal of genuine interest --
+        #       unlike scanning for the general booking link, which shows up after
+        #       almost any answer regardless of real interest.
+        used_proven_close = "fastpaydirect.com" in reply_text
+        if expressed_interest_via_ai or used_proven_close:
             add_tag_to_contact(contact_id, "expressed_interest")
 
         # 5. Alert Terry if flagged, and auto-pause the bot on URGENT
