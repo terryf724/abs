@@ -103,6 +103,7 @@ Conversation history may contain mentions of PAST promotions (e.g. a limited-tim
 - Use the client's first name only if you're certain of it. Do not guess or invent names.
 - One emoji max per message. Keep it professional.
 - PLAIN TEXT ONLY. This is SMS -- NEVER use markdown, asterisks, bold (**text**), headers (##), bullet points, or "Day 1:" style labels. Write like a real person texting. Never use the * character. Keep it short.
+- KEEP IT SHORT. Aim for under 300 characters when possible. Never write a full multi-section recap (e.g. "Services: / Cost: / Expected results:") answering everything at once -- pick the most important 1-2 things and answer those. If they want more detail, they'll ask a follow-up. A long text is more likely to fail to deliver at all, so shorter is always better than thorough.
 - For normal sales questions you do NOT need to say you're a bot. (Only identify as an automated assistant in complaint situations per PRIORITY #1.)
 
 == YOUR PRIMARY OBJECTIVE ==
@@ -389,6 +390,9 @@ def add_tag_to_contact(contact_id, tag):
 
 # ── Helper: Send message via GHL ─────────────────────────────────────────────
 def send_ghl_message(contact_id, message, channel="1"):
+    """Sends a single message via GHL. For customer-facing bot replies, use
+    send_ghl_message_safe() instead -- it auto-splits oversized SMS so nothing
+    ever silently fails to deliver."""
     try:
         r = requests.get(
             f"{GHL_BASE_URL}/conversations/search",
@@ -416,6 +420,68 @@ def send_ghl_message(contact_id, message, channel="1"):
     except Exception as e:
         print(f"Error sending GHL message: {e}")
         return False
+
+
+# ── Safety net: guarantee delivery by auto-splitting oversized SMS ───────────
+# Carriers recommend SMS under ~320 characters (GHL/Twilio error 30019). A
+# message over that limit can silently FAIL to deliver -- the customer gets
+# nothing at all, which is far worse than a long text. This wraps
+# send_ghl_message so oversized replies are automatically split into multiple
+# safe-length messages instead of risking total delivery failure.
+SMS_SAFE_LENGTH = 300  # stays comfortably under the 320-char carrier recommendation
+
+def _split_for_sms(text, limit=SMS_SAFE_LENGTH):
+    """Splits text into chunks <= limit chars, preferring to break on paragraph
+    breaks, then sentence breaks, then hard-wrapping as a last resort. Never
+    splits a URL across chunks."""
+    if len(text) <= limit:
+        return [text]
+
+    chunks = []
+    remaining = text.strip()
+
+    while len(remaining) > limit:
+        window = remaining[:limit]
+
+        # Prefer to break at the last paragraph break within the window
+        split_at = window.rfind("\n\n")
+        if split_at == -1:
+            # Next, try the last sentence-ending punctuation followed by a space
+            for punct in [". ", "! ", "? ", "\n"]:
+                idx = window.rfind(punct)
+                if idx != -1:
+                    split_at = idx + len(punct) - 1
+                    break
+        if split_at == -1 or split_at < limit // 3:
+            # No good natural break found close enough to the limit -- hard wrap
+            # at the last space so we don't cut a word (or URL) in half.
+            split_at = window.rfind(" ")
+            if split_at == -1:
+                split_at = limit  # single unbroken token longer than the limit
+
+        chunk = remaining[:split_at].strip()
+        if chunk:
+            chunks.append(chunk)
+        remaining = remaining[split_at:].strip()
+
+    if remaining:
+        chunks.append(remaining)
+
+    return chunks
+
+
+def send_ghl_message_safe(contact_id, message, channel="1"):
+    """Use this for all customer-facing bot replies. Automatically splits
+    messages over the safe SMS length into multiple sequential texts so a
+    long reply never silently fails to deliver."""
+    parts = _split_for_sms(message)
+    if len(parts) > 1:
+        print(f"Message was {len(message)} chars -- splitting into {len(parts)} SMS parts")
+    all_ok = True
+    for part in parts:
+        ok = send_ghl_message(contact_id, part, channel)
+        all_ok = all_ok and ok
+    return all_ok
 
 
 # ── Helper: Text Terry directly via GHL (business hours only) ────────────────
@@ -581,7 +647,7 @@ def register_ghl_bot(app):
                 "https://services.msgsndr.com/urls/l/elnHhAX69 -- do it today to keep "
                 "your free Snatched Pod session included!"
             )
-            send_ghl_message(contact_id, promo_reply, channel)
+            send_ghl_message_safe(contact_id, promo_reply, channel)
             add_tag_to_contact(contact_id, "expressed_interest")
             return jsonify({"status": "ok", "reply": promo_reply, "flagged": None})
 
@@ -607,7 +673,7 @@ def register_ghl_bot(app):
                 "https://link.fastpaydirect.com/payment-link/67ef0ba908e4883db6f4fa6a\n\n"
                 "Once paid we will text you a private link to schedule your visit!"
             )
-            send_ghl_message(contact_id, close_reply, channel)
+            send_ghl_message_safe(contact_id, close_reply, channel)
             add_tag_to_contact(contact_id, "expressed_interest")
             return jsonify({"status": "ok", "reply": close_reply, "flagged": None})
 
@@ -662,7 +728,7 @@ def register_ghl_bot(app):
         # helpers remain defined above but are intentionally unused.
 
         # 4. Send the reply
-        send_ghl_message(contact_id, reply_text, channel)
+        send_ghl_message_safe(contact_id, reply_text, channel)
 
         # 4a. Tag conversion tracking. Two signals, either one is sufficient:
         #   (1) the AI's own [INTEREST] marker (best-effort, catches edge phrasings)
